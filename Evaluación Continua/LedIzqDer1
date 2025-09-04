@@ -1,0 +1,44 @@
+.include "m328pdef.inc"
+.cseg
+.org 0x00
+    rjmp reset
+
+reset:
+;inicio satck pointer
+    ldi r16, low(RAMEND)
+    out SPL, r16
+    ldi r16, high(RAMEND)
+    out SPH, r16
+
+; defino el puerto D como salida
+    ldi r16, 0xFF 
+    out DDRD, r16 
+
+;Encendido del primer led 
+    ldi r17, 0x01
+
+main:
+    out PORTD, r17 
+    rcall delay
+    lsr r17 ; mueve un bit a la derecha
+    brne main
+    ldi r17, 0x01
+    rjmp main
+
+delay:
+    ldi r19, 100
+externo: 
+    ldi r20, 200
+medio:
+    ldi r21, 200
+interno:
+    dec r21
+    brne interno
+    dec r20
+    brne medio
+    dec r19
+    brne externo
+    ret
+    
+
+
