@@ -18,19 +18,33 @@ reset:
     ldi r17, 0x80
     ldi r18, 0x01
     ldi r19, 0x00
+	ldi r23, 0x08
+	rjmp main
 main:
     or r19, r17
-    or r19, r18
-    out PORTD, r19
-    cp r19, 0x10 
+	or r19, r18
+    out PORTD, r19 
     rcall delay
     lsr r17 ; mueve un bit a la derecha
     lsl r18 ; mueve un bit a la izquierda
-    brne main
-    ldi r17, 0x80
-    ldi r18, 0x01
-    ldi r19, 0x00
-    rjmp main
+	or r19, r17
+	or r19, r18
+	cp r18, r23
+	brne main
+	rjmp iguales
+
+iguales:
+	or r19, r17
+	or r19, r18
+	out PORTD, r19
+	rcall delay
+	lsl r17
+    lsr r18
+	or r19, r17
+	or r19, r18
+	cp r18, r23
+	brne iguales
+
 
 delay:
     ldi r20, 100
