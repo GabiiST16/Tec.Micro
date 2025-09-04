@@ -14,11 +14,10 @@ reset:
     ldi r16, 0xFF 
     out DDRD, r16 
 
-;Encendido del primer led 
+;Encendido del primer led de cada extremo
     ldi r17, 0x80
     ldi r18, 0x01
     ldi r19, 0x00
-	ldi r23, 0x08
 	rjmp main
 main:
     or r19, r17
@@ -27,23 +26,29 @@ main:
     rcall delay
     lsr r17 ; mueve un bit a la derecha
     lsl r18 ; mueve un bit a la izquierda
-	or r19, r17
-	or r19, r18
-	cp r18, r23
-	brne main
-	rjmp iguales
+	cp r18, r17 ; comparara el valor en r18 con el de r17
+	brlo main ; si r18 es menor vuelve al main hasta que sea mayor
 
+	ldi r17, 0x10
+	ldi r18, 0x08
 iguales:
-	or r19, r17
-	or r19, r18
-	out PORTD, r19
-	rcall delay
-	lsl r17
-    lsr r18
-	or r19, r17
-	or r19, r18
-	cp r18, r23
-	brne iguales
+	eor r19, r17
+    eor r19, r18
+    out PORTD, r19
+    rcall delay
+    
+    lsl r17              
+    lsr r18               
+    
+    cp r17, r18           
+    brsh iguales  ; si r17 es mayor que r18 vuelve a iguales  
+	
+
+restart:
+	ldi r17, 0x80
+    ldi r18, 0x01
+    ldi r19, 0x00
+    rjmp main ; Reinicio no funciona 
 
 
 delay:
