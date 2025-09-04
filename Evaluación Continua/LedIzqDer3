@@ -21,11 +21,11 @@ reset:
 main:
     or r19, r17
     or r19, r18
-    out PORTD, r19 
+    out PORTD, r19
+    cp r19, 0x10 
     rcall delay
     lsr r17 ; mueve un bit a la derecha
-    lsr r18 ; mueve un bit a la izquierda
-    
+    lsl r18 ; mueve un bit a la izquierda
     brne main
     ldi r17, 0x80
     ldi r18, 0x01
