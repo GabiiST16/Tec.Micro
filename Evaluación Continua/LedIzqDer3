@@ -16,29 +16,34 @@ reset:
 
 ;Encendido del primer led 
     ldi r17, 0x80
-    ldi r16, 0x00
+    ldi r18, 0x01
+    ldi r19, 0x00
 main:
-    or r18, r17
-    out PORTD, r18 
+    or r19, r17
+    or r19, r18
+    out PORTD, r19 
     rcall delay
     lsr r17 ; mueve un bit a la derecha
+    lsr r18 ; mueve un bit a la izquierda
+    
     brne main
     ldi r17, 0x80
-    ldi r18, 0x00
+    ldi r18, 0x01
+    ldi r19, 0x00
     rjmp main
 
 delay:
-    ldi r18, 100
+    ldi r20, 100
 externo: 
-    ldi r19, 200
+    ldi r21, 200
 medio:
-    ldi r20, 200
+    ldi r22, 200
 interno:
-    dec r20
+    dec r22
     brne interno
-    dec r19
+    dec r21
     brne medio
-    dec r18
+    dec r20
     brne externo
     ret
     
