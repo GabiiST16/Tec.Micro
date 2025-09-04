@@ -15,14 +15,14 @@ reset:
     out DDRD, r16 
 
 ;Encendido del primer led 
-    ldi r17, 0x01
+    ldi r17, 0x80
 
 main:
     out PORTD, r17 
     rcall delay
     lsr r17 ; mueve un bit a la derecha
     brne main
-    ldi r17, 0x01
+    ldi r17, 0x80
     rjmp main
 
 delay:

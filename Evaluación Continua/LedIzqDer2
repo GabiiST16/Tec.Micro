@@ -28,17 +28,17 @@ main:
     rjmp main
 
 delay:
-    ldi r18, 100
+    ldi r19, 100
 externo: 
-    ldi r19, 200
-medio:
     ldi r20, 200
+medio:
+    ldi r21, 200
 interno:
-    dec r20
+    dec r21
     brne interno
-    dec r19
+    dec r20
     brne medio
-    dec r18
+    dec r19
     brne externo
     ret
     
