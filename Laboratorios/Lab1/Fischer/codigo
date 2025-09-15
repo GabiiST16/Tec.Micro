@@ -102,16 +102,19 @@ botones:
 estadoEspera:       
 
     ret
+
 estadoEnergizado:   
     
-ret
+    ret
+
 estadoPosicionamiento:
 
     ret
+    
 estadoPunzonada:
         
     ret
-    
+
 estadoDescarga:
 
     ret
