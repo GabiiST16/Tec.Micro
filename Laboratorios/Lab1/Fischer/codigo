@@ -96,4 +96,29 @@ finalizado:
 
 ;Configuración de subrutinas
 
+datos: 
+botones:
 
+estadoEspera:       
+
+    ret
+estadoEnergizado:   
+    
+ret
+estadoPosicionamiento:
+
+    ret
+estadoPunzonada:
+        
+    ret
+    
+estadoDescarga:
+
+    ret
+
+estadoFin:
+    
+    ret
+
+.dseg
+estado: .byte 1; Guarda el estado actual
