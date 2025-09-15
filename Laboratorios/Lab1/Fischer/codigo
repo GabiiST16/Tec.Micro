@@ -1,6 +1,17 @@
 .include "m328pdef.inc"
 .org 0x00
     RJMP start
+.equ F_CPU = 16000000
+.equ baud = 9600
+.equ bps = (F_CPU/16/baud)-1
+
+;Defino estados
+.equ espera = 0
+.equ energizar = 1
+.equ posicionar = 2
+.equ punzonar = 3
+.equ descarga = 4
+.equ fin = 5
 
 start: 
 ;Inicio stack pointer
@@ -8,9 +19,81 @@ start:
     out spl, r16
     ldi r16, high(ramend)
     out sph, r16
-;Defino puertos de salida
-    ldi r16, 0x7F
+;Baudrate UART
+    ldi r16, low(bps)
+    ldi r17, high(bps)
+    rcall inicioUART
+;Defino puertos de salida para motores y leds
+    ldi r16, 0xFF
     out DDRD, r16; puerto D para M1, M2 y M3
     ldi r16, 0x04
     out DDRB, r16
-;Defino puertos de entrada
+;Defino puertos de entrada para los sensores y botones
+    ldi r16, 0x00 
+    out DDRA, r16
+;Configuro UART
+inicioUART:
+    sts UBRR0L, r16
+    sts UBRR0H, r17
+    ldi r16, (1<<RXEN0)|(1<<TXEN0)
+    sts UCSR0B, r16
+    ldi r16, (1<<UCSZ01)|(1<<UCSZ00)
+    sts UCSR0C, r16
+    RJMP main
+
+;Estado de inicio = espera
+ldi r16, espera
+sts estado, r16
+
+main: 
+    rcall datos ;recibe comandos A,1,2,3
+    rcall botones ;revisa el boton de inicio
+
+    ;Lee el estado actual
+
+    lds r16, estado
+    cpi r16, espera
+    breq esperando
+    cpi r16, energizar
+    breq alimentacion
+    cpi r16, posicionar
+    breq posicionado 
+    cpi r16, punzonar
+    breq punzonada
+    cpi r16, descarga
+    breq descargado
+    cpi r16, fin
+    breq finalizado
+
+    rjmp main
+
+
+;Manejo de estados
+
+esperando:
+    rcall estadoEspera
+    RJMP main
+
+alimentacion:
+    rcall estadoEnergizado
+    RJMP main
+
+posicionado:
+    rcall estadoPosicionamiento
+    RJMP main
+
+punzonada:
+    rcall estadoPunzonada
+    RJMP main
+
+descargado:
+    rcall estadoDescarga
+    RJMP main
+
+finalizado:
+    rcall estadoFin
+    RJMP main
+
+;Configuración de subrutinas
+
+
