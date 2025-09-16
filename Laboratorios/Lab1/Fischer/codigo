@@ -116,9 +116,36 @@ datos:
     lds r17, UCSR0A
     sbrs r17, RXC0       ; RXC0 = 1 cuando hay dato
     rjmp datos
-
 ; Leer el dato recibido y guardar en r16
     lds r16, UDR0
+    cpi r16, 'A'
+    breq inicio
+    cpi r16, '1'
+    breq ligero
+    cpi r16, '2'
+    breq medio
+    cpi r16, '3'
+    breq pesado
+    ret
+
+inicio:
+    ldi r18, energizar
+    sts estado, r18
+    ret
+
+ligero:
+    ldi r18, 1
+    sts carga, r18
+    ret
+
+medio:
+    ldi r18, 2
+    sts carga, r18
+    ret
+
+pesado:   
+    ldi r18, 3
+    sts carga, r18
     ret
     
 botones:
@@ -151,6 +178,6 @@ estadoFin:
 estado: .byte 1; Guarda el estado actual
 carga: .byte 1; tipo de carga (1-3)
 tickL: .byte 1; contador de milisegundos (low)
-tickH:  byte 1; contador de milisegundos (high)
+tickH: .byte 1; contador de milisegundos (high)
 targetL: .byte 1; tiempo de espera (low)
 targetH: .byte 1; tiempo de espera (high)
