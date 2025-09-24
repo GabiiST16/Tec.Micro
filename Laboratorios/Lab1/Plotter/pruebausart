@@ -1,0 +1,120 @@
+
+.INCLUDE "m328pdef.inc"
+
+.equ F_CPU   = 16000000
+.equ BAUD    = 9600
+.equ UBRRVAL = 103       
+
+.CSEG
+.ORG 0x0000
+    RJMP RESET
+
+RESET:
+    LDI R16, LOW(RAMEND)
+    OUT SPL, R16
+    LDI R16, HIGH(RAMEND)
+    OUT SPH, R16
+
+
+    LDS R16, DDRB
+    LDI R16, 0X3F
+    OUT DDRB, R16
+    LDI R16, LOW(UBRRVAL)
+    STS UBRR0L, R16
+    LDI R16, HIGH(UBRRVAL)
+    STS UBRR0H, R16
+
+    LDI R16, (1<<RXEN0) | (1<<TXEN0)
+    STS UCSR0B, R16
+
+
+    LDI R16, (1<<UCSZ01) | (1<<UCSZ00)
+    STS UCSR0C, R16
+
+    RJMP MAIN_LOOP
+
+
+MAIN_LOOP:
+    RCALL USART_RX      
+
+    CPI R17, '1'
+    BREQ PB6_ON
+    CPI R17, '0'
+    BREQ ALL_OFF
+    CPI R17, '2'
+    BREQ PB5i
+    CPI R17, '3'
+    BREQ PB4i
+    CPI R17, '4'
+    BREQ PBall
+
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+PB6_ON:
+    LDS R16, PORTB
+    LDI R16, 0x20
+    OUT PORTB, R16
+    LDI R17, 'O'
+    RCALL USART_TX
+    LDI R17, 'N'
+    RCALL USART_TX
+    LDI R17, 0x0D
+    RCALL USART_TX
+    LDI R17, 0x0A
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+
+ALL_OFF:
+    LDS R16, PORTB
+    Ldi R16, 0x00
+    OUT PORTB, R16
+    LDI R17, 'O'
+    RCALL USART_TX
+    LDI R17, 'F'
+    RCALL USART_TX
+    LDI R17, 'F'
+    RCALL USART_TX
+    LDI R17, 0x0D
+    RCALL USART_TX
+    LDI R17, 0x0A
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+PB5i:
+    LDS R16, PORTB
+    LDI R16, 0X10
+    OUT PORTB, R16
+    LDI R17, '2'
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+PB4i:
+    LDS R16, PORTB
+    LDI R16, 0X08
+    OUT PORTB, R16
+    LDI R17, '2'
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+PBall:
+    LDS R16, PORTB
+    LDI R16, 0X38
+    OUT PORTB, R16
+    LDI R17, '2'
+    RCALL USART_TX
+    RJMP MAIN_LOOP
+
+
+USART_TX:
+TX_WAIT:
+    LDS R16, UCSR0A       
+    SBRS R16, UDRE0       
+    RJMP TX_WAIT
+    STS UDR0, R17         
+    RET
+
+USART_RX:
+RX_WAIT:
+    LDS R16, UCSR0A
+    SBRS R16, RXC0        
+    RJMP RX_WAIT
+    LDS R17, UDR0         
+    RET
+
