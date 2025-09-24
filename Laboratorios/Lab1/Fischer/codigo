@@ -13,6 +13,9 @@
 .equ descarga = 4
 .equ fin = 5
 
+.org OC1Aaddr   ; vector de interrupción Timer1 Compare A
+rjmp TIMER1_COMPA_ISR
+
 start: 
 ;Inicio stack pointer
     ldi r16, low(ramend)
@@ -81,8 +84,7 @@ main:
     breq finalizado
 
     rjmp main
-
-
+    
 ;Manejo de estados
 
 esperando:
@@ -128,6 +130,31 @@ datos:
     breq pesado
     ret
 
+; Configurar un temporizador (r17:r16 = ms)
+timer:
+    sts targetL, r16
+    sts targetH, r17
+    ldi r16, 0
+    sts tickL, r16
+    sts tickH, r16
+    ret
+; Verificar si se cumplió el tiempo
+; Devuelve en r16: 1=expirado, 0=no
+timer_expirado:
+    lds r18, tickL
+    lds r19, tickH
+    lds r20, targetL
+    lds r21, targetH
+    cp  r18, r20
+    cpc r19, r21
+    brlo not_yet
+    ldi r16, 1
+    ret
+
+aunNo:
+    ldi r16, 0
+    ret
+
 inicio:
     ldi r18, energizar
     sts estado, r18
@@ -147,7 +174,7 @@ pesado:
     ldi r18, 3
     sts carga, r18
     ret
-    
+
 botones:
 
 estadoEspera:       
@@ -155,7 +182,39 @@ estadoEspera:
     ret
 
 estadoEnergizado:   
-    
+    sbi PORTD,1         ; motor ON
+    lds r16, carga
+    cpi r16, 1
+    breq energ_ligera
+    cpi r16, 2
+    breq energ_media
+    cpi r16, 3
+    breq energ_pesada
+    rjmp energ_check
+
+energ_ligera:
+    ldi r16, low(3000)
+    ldi r17, high(3000)
+    rcall set_timer
+    rjmp energ_check
+energ_media:
+    ldi r16, low(4000)
+    ldi r17, high(4000)
+    rcall set_timer
+    rjmp energ_check
+energ_pesada:
+    ldi r16, low(5000)
+    ldi r17, high(5000)
+    rcall set_timer
+
+energ_check:
+    rcall timer_expired
+    cpi r16, 1
+    brne energ_exit
+    cbi PORTD,1
+    ldi r16, posicionar
+    sts estado, r16
+energ_exit:
     ret
 
 estadoPosicionamiento:
@@ -173,6 +232,24 @@ estadoDescarga:
 estadoFin:
     
     ret
+
+TIMER1_COMPA_ISR:
+    push r16
+    in   r16, SREG
+
+    lds  r16, tickL
+    inc  r16
+    sts  tickL, r16
+    brne tick_done
+    ; si se desborda -> incrementar tickH
+    lds  r16, tickH
+    inc  r16
+    sts  tickH, r16
+
+tick_done:
+    out SREG, r16
+    pop r16
+    reti
 
 .dseg
 estado: .byte 1; Guarda el estado actual
