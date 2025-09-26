@@ -48,7 +48,7 @@ start:
     out DDRB, r16
 ;Defino puertos de entrada para los sensores y botones
     ldi r16, 0x00 
-    out DDRA, r16
+    out DDRC, r16
 ;Configuro UART
 inicioUART:
     sts UBRR0L, r16
