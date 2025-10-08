@@ -1,0 +1,85 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+// Definición de pines
+#define RS PD0
+#define EN PD1
+#define D4 PD4
+#define D5 PD5
+#define D6 PD6
+#define D7 PD7
+
+// Inicializar pines
+void lcd_init_pins() {
+	DDRD |= (1 << RS) | (1 << EN) | (1 << D4) |
+	(1 << D5) | (1 << D6) | (1 << D7);
+}
+// Enviar nibble a la LCD
+void lcd_send_nibble(uint8_t nibble) {
+	if (nibble & 0x01) PORTD |= (1 << D4);
+	else PORTD &= ~(1 << D4);
+	if (nibble & 0x02) PORTD |= (1 << D5);
+	else PORTD &= ~(1 << D5);
+	if (nibble & 0x04) PORTD |= (1 << D6);
+	else PORTD &= ~(1 << D6);
+	if (nibble & 0x08) PORTD |= (1 << D7);
+	else PORTD &= ~(1 << D7);
+
+	// Pulso en Enable
+	PORTD |= (1 << EN);
+	_delay_us(1);
+	PORTD &= ~(1 << EN);
+	_delay_us(100);
+}
+// Inicializar LCD en modo 4 bits
+void lcd_init() {
+	_delay_ms(50);
+	PORTD &= ~(1 << RS); // Modo comando
+
+	// Secuencia de inicialización
+	lcd_send_nibble(0x03);
+	_delay_ms(5);
+	lcd_send_nibble(0x03);
+	_delay_us(100);
+	lcd_send_nibble(0x03);
+	_delay_us(100);
+	lcd_send_nibble(0x02); // Modo 4 bits
+
+	// Configurar función: 4 bits, 2 líneas, font 5x8
+	lcd_send_command(0x28);
+	lcd_send_command(0x0C); // Display on, cursor off
+	lcd_send_command(0x06); // Increment cursor
+	lcd_send_command(0x01); // Clear display
+	_delay_ms(2);
+}
+// Enviar comando a la LCD
+void lcd_send_command(uint8_t cmd) {
+	PORTD &= ~(1 << RS); // Modo comando
+	lcd_send_nibble(cmd >> 4);
+	lcd_send_nibble(cmd & 0x0F);
+}
+
+// Enviar carácter a la LCD
+void lcd_send_data(uint8_t data) {
+	PORTD |= (1 << RS); // Modo datos
+	lcd_send_nibble(data >> 4);
+	lcd_send_nibble(data & 0x0F);
+}
+// Escribir cadena de texto
+void lcd_write_string(char *str) {
+	while (*str) {
+		lcd_send_data(*str++);
+	}
+}
+
+int main(void) {
+	// 1. Inicializar los pines y la pantalla LCD
+	lcd_init_pins();
+	lcd_init();
+
+
+	while (1) {
+
+	}
+
+}
