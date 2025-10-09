@@ -1,0 +1,114 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#include <stdio.h> 
+#define baud 9600
+#define ubr 103 
+// Función para inicializar el USART 
+void USART_Init(unsigned int ubrr) {
+    // 1. Fijar el baud rate
+    UBRR0H = (unsigned char)(ubrr >> 8);
+    UBRR0L = (unsigned char)ubrr;
+
+    // 2. Habilitar el RECEPTOR (RX) y el TRANSMISOR (TX)
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+
+    // 3. Fijar el formato de la trama: 8 datos, 1 bit de parada
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+// Función para recibir un byte
+unsigned char USART_Receive(void) {
+    // Espera a que se reciba un dato (la bandera RXC0 se ponga en 1)
+    while (!(UCSR0A & (1 << RXC0)));
+    
+    // Devuelve el dato recibido del buffer
+    return UDR0;
+}
+
+// Función para enviar un byte
+void USART_Transmit(unsigned char data) {
+    // Espera a que el buffer de transmisión esté vacío
+    while (!(UCSR0A & (1 << UDRE0)));
+    
+    // Pone el dato en el buffer y lo envía
+    UDR0 = data;
+}
+
+// Función para enviar una cadena de texto (string)
+void USART_SendString(const char* str) {
+    while (*str) {
+        USART_Transmit(*str++);
+    }
+}
+// FIN DE LA SECCIÓN USART
+
+
+// SECCIÓN DE CÓDIGO PARA EL TECLADO Y ADC 
+void adc_init(void);
+uint16_t adc_read(uint8_t channel);
+char map_adc_to_key(uint16_t adc_value);
+
+// Función principal del programa
+int main(void) {
+    // Inicializar periféricos
+    adc_init();
+    USART_Init(ubr); // Llamada a la función de inicialización
+    
+    char key, last_key = ' ';
+    uint16_t adc_val;
+
+    USART_SendString("Simulador de Teclado 4x4 en 1 Pin\r\n"); // Llamada a la función de envío
+    USART_SendString("Listo para recibir pulsaciones...\r\n");
+
+    while (1) {
+        adc_val = adc_read(0); // Leer el canal ADC0
+        key = map_adc_to_key(adc_val);
+
+        // Lógica para detectar y mostrar solo la primera pulsación
+        if (key != ' ' && key != last_key) {
+            char buffer[32];
+            sprintf(buffer, "Tecla presionada: %c\r\n", key);
+            USART_SendString(buffer); // Llamada a la función de envío
+        }
+        
+        last_key = key;
+        _delay_ms(100); // Retardo anti-rebote
+    }
+}
+
+// Mapea el valor exacto del ADC (calculado para Proteus) a una tecla.
+char map_adc_to_key(uint16_t adc_value) {
+    switch (adc_value) {
+        case 0:   return ' '; 
+        case 165: return '1';
+        case 282: return '2';
+        case 372: return '3';
+        case 444: return 'A';
+        case 525: return '4';
+        case 615: return '5';
+        case 686: return '6';
+        case 752: return 'B';
+        case 820: return '7';
+        case 854: return '8';
+        case 887: return '9';
+        case 918: return 'C';
+        case 945: return '*';
+        case 964: return '0';
+        case 979: return '#';
+        case 990: return 'D';
+        default: return ' ';
+    }
+}
+
+void adc_init(void) {
+    ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+}
+
+uint16_t adc_read(uint8_t channel) {
+    ADMUX = (ADMUX & 0xF8) | (channel & 0x07);
+    ADCSRA |= (1 << ADSC);
+    while (ADCSRA & (1 << ADSC));
+    return ADC;
+}
