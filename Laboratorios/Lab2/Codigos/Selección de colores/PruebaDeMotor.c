@@ -4,8 +4,8 @@
 #include <util/delay.h>
 
 // Valores calculados para el pulso del servo
-#define SERVO_MIN 250 // Pulso para 0 grados (1ms)
-#define SERVO_MAX 500 // Pulso para 180 grados (2ms)
+#define SERVO_MIN 90 // Pulso para 0 grados (1ms)
+#define SERVO_MAX 600 // Pulso para 180 grados (2ms)
 
 void servo_timer1_init(void) {
 	// Configurar el pin de salida para el servo PB1
