@@ -8,14 +8,18 @@
 #define baud 9600
 #define ubr 103
 //Definicion de colores
-#define ADC_AZULinf 4
-#define ADC_AZULsup 6
-#define ADC_VERDEinf 7
-#define ADC_VERDEsup 9
-#define ADC_AMARILLOinf 13
-#define ADC_AMARILLOsup 16
-#define ADC_CELESTEinf 10
-#define ADC_CELESTEsup 12
+#define ADC_AZULinf 158
+#define ADC_AZULsup 172
+#define ADC_VERDEinf 130
+#define ADC_VERDEsup 145
+#define ADC_AMARILLOinf 74
+#define ADC_AMARILLOsup 100
+#define ADC_CELESTEinf 100
+#define ADC_CELESTEsup 129
+#define AZUL_ESPERADO 163
+#define CELESTE_ESPERADO 120
+#define VERDE_ESPERADO 135
+#define AMARILLO_ESPERADO 99
 
 #define SERVO_MIN 90 // Pulso para 0 grados (1ms)
 #define SERVO_MAX 600 // Pulso para 180 grados (2ms)
@@ -51,7 +55,7 @@ int main(void) {
 	uint16_t adc_average;
 	uint32_t adc_sum = 0;
 	char buffer[6]; // Buffer para almacenar el valor
-	
+	int16_t diferencia;
 	USART_Init(ubr);
 	ADC_Init();
 	servo_timer1_init();
@@ -80,24 +84,60 @@ int main(void) {
 		switch (color) {
 			case VERDE:
 			USART_SendString("VERDE");
+			USART_SendString("\r");
+			sprintf(buffer, "%u", VERDE_ESPERADO);
+			USART_SendString("Valor esperado: ");
+			USART_SendString(buffer);
+			USART_SendString("\r");
+			diferencia = adc_average - VERDE_ESPERADO; 
+			sprintf(buffer, "%d", diferencia);
+			USART_SendString("Diferencia: ");
+			USART_SendString(buffer);
 			servo_set_angle(45);
 			fillAllLedsRGB(0,255, 0);
 			show(leds);
 			break;
 			case AZUL:
 			USART_SendString("AZUL");
+			USART_SendString("\r");
+			sprintf(buffer, "%u", AZUL_ESPERADO);
+			USART_SendString("Valor esperado: ");
+			USART_SendString(buffer);
+			USART_SendString("\r");
+			diferencia = adc_average - AZUL_ESPERADO;
+			sprintf(buffer, "%d", diferencia);
+			USART_SendString("Diferencia: ");
+			USART_SendString(buffer);
 			servo_set_angle(180);
-			fillAllLedsRGB(0, 255, 0);
+			fillAllLedsRGB(0, 0, 255);
 			show(leds);
 			break;
 			case AMARILLO:
 			USART_SendString("AMARILLO");
+			USART_SendString("\r");
+			sprintf(buffer, "%u", AMARILLO_ESPERADO);
+			USART_SendString("Valor esperado: ");
+			USART_SendString(buffer);
+			USART_SendString("\r");
+			diferencia = adc_average - AMARILLO_ESPERADO;
+			sprintf(buffer, "%d", diferencia);
+			USART_SendString("Diferencia: ");
+			USART_SendString(buffer);
 			servo_set_angle(0);
-			fillAllLedsRGB(255, 0, 255);
+			fillAllLedsRGB(255, 255, 0);
 			show(leds);
 			break;
 			case CELESTE:
 			USART_SendString("CELESTE");
+			USART_SendString("\r");
+			sprintf(buffer, "%u", CELESTE_ESPERADO);
+			USART_SendString("Valor esperado: ");
+			USART_SendString(buffer);
+			USART_SendString("\r");
+			diferencia = adc_average - CELESTE_ESPERADO;
+			sprintf(buffer, "%d", diferencia);
+			USART_SendString("Diferencia: ");
+			USART_SendString(buffer);
 			servo_set_angle(135);
 			fillAllLedsRGB(135, 235, 206);
 			show(leds);
@@ -207,7 +247,7 @@ void sendBit(uint8_t bitVal){
 		asm volatile(
 		"nop\n\t""nop\n\t""nop\n\t""nop\n\t"
 		);
-	}else {
+		}else {
 		PORTD |= (1 << LED);
 		asm volatile(
 		"nop\n\t""nop\n\t""nop\n\t"
