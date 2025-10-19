@@ -39,6 +39,5 @@ int main(void)
 		_delay_ms(2500);
 		crear_frecuencia(523.0, 50);
 		_delay_ms(2500);
-		//TODO:: Please write your application code 
     }
 }
