@@ -274,7 +274,7 @@ void pintar(uint16_t largoab,uint16_t largoder){
 		ar(largoab); _delay_ms(50);
 	}
 }
-#include <util/delay.h>
+
 
 void raton(){
 	bajarsel(); _delay_ms(100);
