@@ -1,0 +1,178 @@
+import serial
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.dates import DateFormatter
+import collections
+import datetime
+import time
+import threading
+import numpy as np 
+
+# CONFIGURACIÓN
+try:
+    PORT = 'COM6' 
+    ser = serial.Serial(PORT, 9600, timeout=1)
+    print(f"Conectado a {PORT} exitosamente.")
+except Exception as e:
+    print(f"Error: No se pudo abrir el puerto {PORT}.")
+    print("Verifica que NINGÚN otro programa (Monitor Serial) lo esté usando.")
+    print(f"Detalle del error: {e}")
+    exit()
+
+# HILO DE ENTRADA DE USUARIO
+def user_input_thread(ser_conn):
+    print("="*30)
+    print("Control de Rango (escriba en esta consola)")
+    print("Formato: min,max (ej: 25,35) y presione Enter.")
+    print("Escriba 'exit' para salir.")
+    print("="*30)
+    
+    while True:
+        try:
+            user_cmd = input("Nuevo Rango (min,max): ")
+            
+            if user_cmd.lower() == 'exit':
+                print("Cerrando hilo de entrada...")
+                break
+                
+            parts = user_cmd.split(',')
+            if len(parts) != 2:
+                print("Error: Formato incorrecto. Use 'min,max'")
+                continue
+                
+            ideal_b = float(parts[0])
+            ideal_a = float(parts[1])
+            
+            if ideal_b >= ideal_a:
+                print("Error: El mínimo debe ser menor que el máximo.")
+                continue
+            
+            cmd_to_send = f"S,{ideal_b},{ideal_a}\r\n"
+            ser_conn.write(cmd_to_send.encode('utf-8'))
+            print(f"Comando enviado: {cmd_to_send.strip()}")
+            
+        except Exception as e:
+            # Esto puede pasar si el puerto se cierra
+            print(f"Error en el hilo de entrada: {e}")
+            break
+
+# Limpiar buffer de Arduino
+print("Esperando 2 segundos para que el Arduino se inicie...")
+time.sleep(2)
+ser.flushInput()
+print("Buffer de Arduino limpiado.")
+
+# Iniciar el hilo de entrada del usuario
+# 'daemon=True' significa que el hilo se cierra si el programa principal se cierra
+input_thread = threading.Thread(target=user_input_thread, args=(ser,), daemon=True)
+input_thread.start()
+
+
+# PREPARACIÓN DE DATOS (hilo principal)
+MAX_PUNTOS = 100
+tiempos = collections.deque(maxlen=MAX_PUNTOS)
+temperaturas = collections.deque(maxlen=MAX_PUNTOS)
+acciones = collections.deque(maxlen=MAX_PUNTOS)
+rango_ideal = collections.deque(maxlen=MAX_PUNTOS) 
+
+# CONFIGURACIÓN DEL GRÁFICO 
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+fig.suptitle('Sistema de Control de Temperatura', fontsize=16)
+
+ax1.set_title('Evolución de la Temperatura')
+ax1.set_ylabel('Temperatura (°C)')
+ax1.set_ylim(10, 60) 
+ax2.set_title('Acciones del Sistema')
+ax2.set_xlabel('Tiempo')
+ax2.set_ylabel('Estado')
+ax2.set_yticks([0, 1, 2, 3, 4])
+ax2.set_yticklabels(['Apagado', 'Calefactor', 'Fan Bajo', 'Fan Medio', 'Fan Alto'])
+ax2.set_ylim(-0.5, 4.5)
+
+
+# FUNCIÓN DE ANIMACIÓN (hilo principal)
+def animate(i):
+    global tiempos, temperaturas, acciones, rango_ideal
+
+    try:
+        linea = ser.readline().decode('utf-8').strip()
+        
+        if not linea:
+            return
+        
+        datos = linea.split(',')
+        
+        if len(datos) != 4:
+            # Línea de datos ignorada (no es el formato esperado)
+            return
+
+        temp = float(datos[0])
+        accion = int(datos[1])
+        ideal_b = float(datos[2])
+        ideal_a = float(datos[3])
+        
+        tiempos.append(datetime.datetime.now())
+        temperaturas.append(temp)
+        acciones.append(accion)
+        rango_ideal.append((ideal_b, ideal_a)) 
+
+    except Exception as e:
+        print(f"Error procesando datos: {e}, Linea: '{linea}'")
+        return
+
+    # Limpiar y Redibujar
+    ax1.cla()
+    ax2.cla()
+    
+    if temperaturas:
+        ax1.plot(tiempos, temperaturas, 'b-', label='Temperatura Actual (°C)')
+        
+        # Dibuja la banda verde (que se actualizará cuando cambie el rango)
+        ideal_b_actual, ideal_a_actual = rango_ideal[-1]
+        ax1.axhspan(ideal_b_actual, ideal_a_actual, 
+                      color='green', alpha=0.3, label=f'Rango Ideal ({ideal_b_actual}-{ideal_a_actual}°C)')
+        
+        ax1.set_title('Evolución de la Temperatura')
+        ax1.set_ylabel('Temperatura (°C)')
+        ax1.set_ylim(10, 60)
+        ax1.legend(loc='upper left')
+        ax1.grid(True)
+
+    if acciones:
+        # --- MODIFICACIÓN INICIO ---
+        t_data = list(tiempos) 
+        a_data = list(acciones)
+        
+        # Crear listas de datos para los dos actuadores
+        # Calefactor: 1 si estado es 1, 0 en otro caso
+        calefactor_plot = [1 if a == 1 else 0 for a in a_data]
+        
+        # Ventilador: Muestra el nivel (2, 3, 4) si es >= 2, 0 en otro caso
+        ventilador_plot = [a if a >= 2 else 0 for a in a_data]
+
+        # Graficar los dos actuadores por separado
+        ax2.step(t_data, calefactor_plot, 'r-', where='post', label='Calefactor', linewidth=2)
+        ax2.step(t_data, ventilador_plot, 'b-', where='post', label='Ventilador', linewidth=2)
+        
+        ax2.legend(loc='upper left')
+        # --- MODIFICACIÓN FIN ---
+        
+        ax2.set_title('Acciones del Sistema')
+        ax2.set_xlabel('Tiempo')
+        ax2.set_ylabel('Estado')
+        ax2.set_yticks([0, 1, 2, 3, 4])
+        ax2.set_yticklabels(['Apagado', 'Calefactor', 'Bajo', 'Medio', 'Alto'])
+        ax2.set_ylim(-0.5, 4.5)
+        ax2.grid(True)
+
+    ax2.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+    fig.autofmt_xdate()
+
+# INICIAR LA ANIMACIÓN 
+ani = animation.FuncAnimation(fig, animate, interval=100, cache_frame_data=False)
+
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.show() 
+
+ser.close()
+print("Puerto serial cerrado. Programa finalizado.")
