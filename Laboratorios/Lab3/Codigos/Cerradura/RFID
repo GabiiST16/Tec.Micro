@@ -1,0 +1,298 @@
+
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include <avr/eeprom.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+// ======== Librerías provistas (no modificar) ========
+#include "SPI.h"
+#include "RC522.h"
+#include "UART.h"
+
+// ======== Pines de usuario (ajusta aquí si hace falta) ========
+// LEDs
+#define LED_G_DDR   DDRD
+#define LED_G_PORT  PORTD
+#define LED_G_PIN   PD6
+
+#define LED_R_DDR   DDRD
+#define LED_R_PORT  PORTD
+#define LED_R_PIN   PD7
+
+// Botones con pull-up interno
+#define BTN_UPD_DDR   DDRC
+#define BTN_UPD_PORT  PORTC
+#define BTN_UPD_PINR  PINC
+#define BTN_UPD_PIN   PC0    // Actualizar/registrar
+
+#define BTN_DEL_DDR   DDRC
+#define BTN_DEL_PORT  PORTC
+#define BTN_DEL_PINR  PINC
+#define BTN_DEL_PIN   PC1    // Borrar
+
+// ======== I2C/TWI + LCD (PCF8574: P0=RS, P1=RW, P2=E, P3=BL, P4..P7=D4..D7) ========
+#define F_SCL     100000UL
+#define LCD_ADDR  0x27           
+#define RS_BM (1<<0)
+#define RW_BM (1<<1)
+#define E_BM  (1<<2)
+#define BL_BM (1<<3)
+
+static inline void twi_init(void){
+	TWSR = 0x00; // prescaler=1
+	// TWBR = ((F_CPU/F_SCL)-16)/2
+	TWBR = (uint8_t)((F_CPU/F_SCL - 16)/2);
+	TWCR = (1<<TWEN);
+}
+static inline void twi_start(uint8_t sla_w){
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while(!(TWCR & (1<<TWINT)));
+	TWDR = (sla_w<<1); // write
+	TWCR = (1<<TWINT)|(1<<TWEN);
+	while(!(TWCR & (1<<TWINT)));
+}
+static inline void twi_write(uint8_t data){
+	TWDR = data;
+	TWCR = (1<<TWINT)|(1<<TWEN);
+	while(!(TWCR & (1<<TWINT)));
+}
+static inline void twi_stop(void){
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+}
+
+// Backlight ON por defecto
+static uint8_t lcd_bl = BL_BM;
+
+static void lcd_i2c_push(uint8_t b){
+	twi_start(LCD_ADDR);
+	twi_write(b | lcd_bl);
+	twi_stop();
+}
+static void lcd_pulse(uint8_t data){
+	lcd_i2c_push(data | E_BM);
+	_delay_us(1);
+	lcd_i2c_push(data & ~E_BM);
+	_delay_us(40);
+}
+static void lcd_send4(uint8_t nibble, uint8_t rs){
+	uint8_t data = (nibble & 0xF0) | (rs?RS_BM:0);
+	lcd_pulse(data);
+}
+static void lcd_cmd(uint8_t c){
+	lcd_send4(c & 0xF0, 0);
+	lcd_send4((c<<4) & 0xF0, 0);
+	if(c==0x01 || c==0x02) _delay_ms(2);
+}
+static void lcd_data(uint8_t d){
+	lcd_send4(d & 0xF0, 1);
+	lcd_send4((d<<4) & 0xF0, 1);
+}
+static void lcd_init(void){
+	twi_init();
+	_delay_ms(50);
+	// init 4-bit
+	lcd_send4(0x30,0); _delay_ms(5);
+	lcd_send4(0x30,0); _delay_us(150);
+	lcd_send4(0x30,0); _delay_us(150);
+	lcd_send4(0x20,0); _delay_us(150);
+
+	lcd_cmd(0x28); // 4-bit, 2 líneas, 5x8
+	lcd_cmd(0x0C); // display ON, cursor OFF
+	lcd_cmd(0x06); // entry mode
+	lcd_cmd(0x01); // clear
+}
+static void lcd_clear(void){ lcd_cmd(0x01); }
+static void lcd_set_cursor(uint8_t col, uint8_t row){
+	static const uint8_t base[] = {0x00,0x40,0x14,0x54};
+	lcd_cmd(0x80 | (base[row&3] + col));
+}
+static void lcd_print(const char* s){
+	while(*s) lcd_data((uint8_t)*s++);
+}
+static void lcd_print_ln(uint8_t row, const char* s){
+	lcd_set_cursor(0,row); lcd_print("                ");
+	lcd_set_cursor(0,row); lcd_print(s);
+}
+
+// ======== EEPROM: UID autorizado (4 bytes) ========
+EEMEM static uint8_t ee_magic = 0xFF;  // 0xA5 = válido
+EEMEM static uint8_t ee_uid[4];
+
+static bool eeprom_has_uid(void){
+	return (eeprom_read_byte(&ee_magic) == 0xA5);
+}
+static void eeprom_store_uid(const uint8_t uid4[4]){
+	eeprom_update_block(uid4, ee_uid, 4);
+	eeprom_update_byte(&ee_magic, 0xA5);
+}
+static void eeprom_clear_uid(void){
+	eeprom_update_byte(&ee_magic, 0xFF);
+}
+
+// ======== Utilidad: debounce botones activos en 0 ========
+static bool btn_pressed(volatile uint8_t *pinr, uint8_t bit){
+	if(((*pinr)&(1<<bit))==0){ _delay_ms(20); return (((*pinr)&(1<<bit))==0); }
+	return false;
+}
+
+// ======== Forward para función de librería (no está en el .h) ========
+void mfrc522_resetPinInit(void); // definida en RC522.c
+
+// ======== App ========
+static void hw_init(void){
+	// LEDs
+	LED_G_DDR |= (1<<LED_G_PIN);
+	LED_R_DDR |= (1<<LED_R_PIN);
+
+	// Botones: entrada + pull-up
+	BTN_UPD_DDR  &= ~(1<<BTN_UPD_PIN);
+	BTN_UPD_PORT |=  (1<<BTN_UPD_PIN);
+	BTN_DEL_DDR  &= ~(1<<BTN_DEL_PIN);
+	BTN_DEL_PORT |=  (1<<BTN_DEL_PIN);
+
+	// Estado inicial
+	LED_G_PORT &= ~(1<<LED_G_PIN);
+	LED_R_PORT &= ~(1<<LED_R_PIN);
+}
+
+static void ui_idle(void){
+	lcd_print_ln(0, "CERRADURA RFID");
+	lcd_print_ln(1, "Acerque su tarjeta");
+}
+
+static void ui_denied(void){
+	lcd_print_ln(0, "Acceso denegado");
+	lcd_print_ln(1, "Intente nuevamente");
+}
+
+static void ui_granted(void){
+	lcd_print_ln(0, "Acceso permitido");
+	lcd_print_ln(1, "Bienvenido");
+}
+
+static void ui_new_card(void){
+	lcd_print_ln(0, "Nueva tarjeta");
+	lcd_print_ln(1, "registrada");
+}
+
+static void ui_erased(void){
+	lcd_print_ln(0, "Tarjeta borrada");
+	lcd_print_ln(1, "Registre una nueva");
+}
+
+int main(void){
+	// Inicialización básica
+	hw_init();
+	lcd_init();
+	uart_init(103);        // 9600 bps @16 MHz
+	spi_init();
+	// Bajar velocidad SPI sin tocar la librería:
+	SPCR |= (1<<SPR0);   // prescaler x16 si SPI2X=0 (o x8 si SPI2X=1)
+	SPSR &= ~(1<<SPI2X); // quitar doble velocidad => Fosc/16 = 1 MHz (recomendado)
+	PORTB |= (1<<PB2);   // asegurar SS (D10) en alto por defecto
+
+
+	// RC522
+	mfrc522_resetPinInit(); // RST como salida + reset HW
+	mfrc522_init();
+
+	sei();
+
+	// Mensaje inicial
+	uart_print("\r\n[RFID] Cerradura iniciada\r\n");
+	ui_idle();
+
+	// Buffer para UID leído por tu función mfrc522_standard()
+	uint8_t uid_buf[10] = {0};  
+	uint8_t last_good_uid[4] = {0};
+
+	// Si hay UID en EEPROM, lo leemos a RAM
+	if(eeprom_has_uid()){
+		eeprom_read_block(last_good_uid, ee_uid, 4);
+		uart_print("UID autorizado en EEPROM: ");
+		uart_print_hex_array(last_good_uid, 4);
+		}else{
+		uart_print("No hay UID autorizado en EEPROM.\r\n");
+		lcd_print_ln(0,"Sin tarjeta reg.");
+		lcd_print_ln(1,"Presione ACTUALIZ");
+		_delay_ms(1500);
+		ui_idle();
+	}
+
+	for(;;){
+		// --- Botón BORRAR ---
+		if(btn_pressed(&BTN_DEL_PINR, BTN_DEL_PIN)){
+			eeprom_clear_uid();
+			LED_R_PORT |= (1<<LED_R_PIN);
+			LED_G_PORT &= ~(1<<LED_G_PIN);
+			uart_print("[RFID] Tarjeta borrada de EEPROM.\r\n");
+			ui_erased();
+			_delay_ms(1200);
+			LED_R_PORT &= ~(1<<LED_R_PIN);
+			ui_idle();
+			while(btn_pressed(&BTN_DEL_PINR, BTN_DEL_PIN)); // espera soltar
+		}
+
+		// --- Botón ACTUALIZAR/REGISTRAR ---
+		if(btn_pressed(&BTN_UPD_PINR, BTN_UPD_PIN)){
+			lcd_print_ln(0,"Acercar NUEVA");
+			lcd_print_ln(1,"tarjeta...");
+			uart_print("[RFID] Modo registro: acerque tarjeta.\r\n");
+
+			// Esperar a leer un UID válido (la función de tu lib llena uid_buf)
+			memset(uid_buf, 0, sizeof(uid_buf));
+			for(uint16_t i=0;i<500;i++){   // ~5s timeout suave
+				mfrc522_standard(uid_buf);
+				// Usamos los primeros 4 bytes (MIFARE UID de 4 B)
+				if(uid_buf[0]|uid_buf[1]|uid_buf[2]|uid_buf[3]){
+					eeprom_store_uid(uid_buf);                 // guarda 4B
+					memcpy(last_good_uid, uid_buf, 4);
+					uart_print("[RFID] Nueva tarjeta registrada: ");
+					uart_print_hex_array(uid_buf, 4);
+					ui_new_card();
+					_delay_ms(1200);
+					ui_idle();
+					break;
+				}
+				_delay_ms(10);
+			}
+			while(btn_pressed(&BTN_UPD_PINR, BTN_UPD_PIN)); // espera soltar
+		}
+
+		// --- Verificación normal de acceso ---
+		memset(uid_buf, 0, sizeof(uid_buf));
+		mfrc522_standard(uid_buf); 
+
+		if(uid_buf[0]|uid_buf[1]|uid_buf[2]|uid_buf[3]){   // algo se leyó
+			if(eeprom_has_uid() &&
+			memcmp(uid_buf, last_good_uid, 4)==0){
+				// OK: acceso (solo indicación visual)
+				LED_G_PORT |= (1<<LED_G_PIN);
+				LED_R_PORT &= ~(1<<LED_R_PIN);
+				uart_print("[RFID] Acceso PERMITIDO.\r\n");
+				ui_granted();
+				_delay_ms(1500);
+				// volver a reposo
+				LED_G_PORT &= ~(1<<LED_G_PIN);
+				ui_idle();
+				}else{
+				// NO OK
+				LED_R_PORT |= (1<<LED_R_PIN);
+				LED_G_PORT &= ~(1<<LED_G_PIN);
+				uart_print("[RFID] Acceso DENEGADO.\r\n");
+				ui_denied();
+				_delay_ms(1000);
+				LED_R_PORT &= ~(1<<LED_R_PIN);
+				ui_idle();
+			}
+		}
+
+		_delay_ms(40); // lazo suave
+	}
+	// nunca llega
+	return 0;
+}
