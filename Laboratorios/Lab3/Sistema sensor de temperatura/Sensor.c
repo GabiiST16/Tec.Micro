@@ -1,22 +1,17 @@
-/*
- * PRUEBA DEL SENSOR LM35 CON FLOATS (sprintf)
- * Muestra el valor crudo, el voltaje y la temperatura en °C.
- */
-
 #define F_CPU 16000000UL
 #include <avr/io.h>
 #include <util/delay.h>
-#include <stdio.h> // Para sprintf()
+#include <stdio.h>
 
-// --- Definiciones de USART y ADC ---
+//Definiciones de USART y ADC 
 #define baud 9600
 #define ubr 103
-#define SENSOR_ADC_CHAN 1 // El sensor está en A1 (Canal 1)
+#define SENSOR_ADC_CHAN 1
 
-// --- Buffer para enviar la línea ---
+//Buffer para enviar la línea 
 char buffer[80]; // Aumentamos el buffer por si acaso
 
-// --- 1. MÓDULO USART (Tu código) ---
+//MÓDULO USART
 void USART_Init(unsigned int ubrr)
 {
     UBRR0H = (unsigned char)(ubrr >> 8);
@@ -39,9 +34,8 @@ void USART_SendString(const char *str)
         USART_Transmit(*str++);
     }
 }
-// --- Fin Módulo USART ---
 
-// --- 2. MÓDULO ADC (Tu código - 8 bits) ---
+//MÓDULO ADC 
 void ADC_Init(void)
 {
     ADMUX = (1 << REFS0) | (1 << ADLAR);                               // 5V Ref, Resultado 8-bit (ADCH)
@@ -56,16 +50,15 @@ uint8_t ADC_Read(uint8_t channel)
         ;        // Esperar
     return ADCH; // Devolver los 8 bits altos
 }
-// --- Fin Módulo ADC ---
-
-// --- 3. PROGRAMA PRINCIPAL ---
+8
+// PROGRAMA PRINCIPAL 
 int main(void)
 {
     // Inicializar periféricos
     USART_Init(ubr);
     ADC_Init();
 
-    USART_SendString("\r\n--- Prueba del Sensor LM35 (con Floats) ---\r\n");
+    USART_SendString("\r\n Prueba del Sensor LM35\r\n");
 
     uint8_t valor_raw;
     float voltaje;
@@ -73,26 +66,25 @@ int main(void)
 
     while (1)
     {
-        // 1. Leer el valor del sensor (0-255)
+        //Leer el valor del sensor (0-255)
         valor_raw = ADC_Read(SENSOR_ADC_CHAN);
 
-        // 2. Calcular voltaje (float)
+        //Calcular voltaje
         // (valor_raw / 255.0) -> Porcentaje de la lectura
         // * 5.0 -> Voltaje (basado en la referencia de 5V)
         voltaje = ((float)valor_raw * 5.0) / 255.0;
 
-        // 3. Calcular temperatura (float)
-        // El LM35 da 10mV (0.01V) por grado Celsius
+        // Calcular temperatura 
         temperaturaC = voltaje * 100.0;
 
-        // 4. Formatear la cadena de salida con floats
+        //Formatear la cadena de salida con floats
         sprintf(buffer,
                 "Crudo: %u | Voltaje: %.2f V | Temp: %.2f C\r\n",
                 valor_raw,
                 voltaje,
                 temperaturaC);
 
-        // 5. Enviar la cadena formateada
+        //Enviar la cadena formateada
         USART_SendString(buffer);
 
         _delay_ms(500); // Esperar medio segundo
