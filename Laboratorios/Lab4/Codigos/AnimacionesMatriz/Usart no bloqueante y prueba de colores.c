@@ -19,6 +19,47 @@ volatile char comando_recibido = 0;
 
 // USART (Recepción por Interrupción)
 
+void USART_Init(unsigned int ubrr):
+void USART_Transmit(unsigned char data):
+void USART_SendString(const char *str):
+ISR(USART_RX_vect):
+
+void sendBit(uint8_t bitVal):
+void sendByte(uint8_t byte):
+void show(uint8_t (*colors)[3]):
+void setLedRGB(uint8_t (*leds_buf)[3], int ledIndex, uint8_t r, uint8_t g, uint8_t b):
+void fillAllLedsRGB(uint8_t r, uint8_t g, uint8_t b):
+void probarColores(void):
+
+int main(void) {
+    // pin de la matriz PD6 
+    DDRD |= (1 << LED);
+    
+    USART_Init(ubr);
+    
+    // Habilitar interrupciones globales
+    sei(); 
+    
+    // Saludo inicial
+    USART_SendString("\r\n Sistema de Prueba de Matriz  \r\n");
+    USART_SendString("Envie '0' para probar los colores.\r\n");
+    
+    while (1) {
+        
+        if (comando_recibido == '0') {
+            
+            comando_recibido = 0; 
+            
+            USART_SendString("Comando '0' recibido. Ejecutando prueba...\r\n");
+            
+            probarColores();
+            
+            USART_SendString("Prueba finalizada. Envie '0' de nuevo.\r\n");
+        }
+        
+    }
+}
+
 void USART_Init(unsigned int ubrr)
 {
     UBRR0H = (unsigned char)(ubrr >> 8);
@@ -27,7 +68,6 @@ void USART_Init(unsigned int ubrr)
     UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); 
 }
-
 void USART_Transmit(unsigned char data)
 {
     while (!(UCSR0A & (1 << UDRE0)));
@@ -41,8 +81,6 @@ void USART_SendString(const char *str)
         USART_Transmit(*str++);
     }
 }
-
-
 ISR(USART_RX_vect) {
     char cmd = UDR0; // Leer carácter
 
@@ -117,33 +155,4 @@ void probarColores(void) {
     
     fillAllLedsRGB(0, 0, 0); // Apagar
     show(leds);
-}
-
-int main(void) {
-    // pin de la matriz PD6 
-    DDRD |= (1 << LED);
-    
-    USART_Init(ubr);
-    
-    // Habilitar interrupciones globales
-    sei(); 
-    
-    // Saludo inicial
-    USART_SendString("\r\n Sistema de Prueba de Matriz  \r\n");
-    USART_SendString("Envie '0' para probar los colores.\r\n");
-    
-    while (1) {
-        
-        if (comando_recibido == '0') {
-            
-            comando_recibido = 0; 
-            
-            USART_SendString("Comando '0' recibido. Ejecutando prueba...\r\n");
-            
-            probarColores();
-            
-            USART_SendString("Prueba finalizada. Envie '0' de nuevo.\r\n");
-        }
-        
-    }
 }
