@@ -1,4 +1,3 @@
-
 #define F_CPU 16000000UL
 
 #include <avr/io.h>
@@ -7,7 +6,7 @@
 #include <util/delay.h>
 #include <string.h>
 
-
+// --- Definiciones ---
 #define baud 9600
 #define ubr 103
 #define LED 6
@@ -18,15 +17,19 @@
 const uint8_t anim1_numFrames = 12;
 const int anim1_tiempoFrame = 250;
 
+const uint8_t anim2_numFrames = 10;
+const int anim2_tiempoFrame = 150; // Más rápido para el cohete
 
-volatile char comando_recibido = '0'; // '0'=Test, '1'=Anim1
+
+volatile char comando_recibido = '0'; // '0'=Test, '1'=Alien, '2'=Cohete
 volatile uint32_t milisegundos_contador = 0;
 
-int animacionActual = 0; // 0=Test/Detenido, 1=Anim1
+int animacionActual = 0; // 0=Test/Detenido, 1=Alien, 2=Cohete
 int frameActual = 0;
 uint32_t tiempoFrameAnterior = 0;
 int velocidadFrames = 1000;
 uint8_t numFramesActual = 0;
+
 uint8_t leds[NUM_LEDS][3];
 
 void USART_Init(unsigned int ubrr);
@@ -37,6 +40,8 @@ void sendByte(uint8_t byte);
 void show(uint8_t (*colors)[3]);
 void setLedRGB(uint8_t (*leds_buf)[3], int ledIndex, uint8_t r, uint8_t g, uint8_t b);
 void fillAllLedsRGB(uint8_t r, uint8_t g, uint8_t b);
+
+
 const uint8_t alien_frame1[NUM_LEDS][3] PROGMEM;
 const uint8_t alien_frame2[NUM_LEDS][3] PROGMEM;
 const uint8_t alien_frame3[NUM_LEDS][3] PROGMEM;
@@ -50,20 +55,27 @@ const uint8_t alien_frame10[NUM_LEDS][3] PROGMEM;
 const uint8_t alien_frame11[NUM_LEDS][3] PROGMEM;
 const uint8_t alien_frame12[NUM_LEDS][3] PROGMEM;
 
-// Índice de la Animación (Punteros a los frames en PROGMEM)
-const uint8_t (* const animacion1[])[3] PROGMEM;
-const uint8_t (* const animacion2[])[3] PROGMEM;
+const uint8_t CoheteF1[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF2[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF3[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF4[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF5[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF6[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF7[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF8[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF9[NUM_LEDS][3] PROGMEM;
+const uint8_t CoheteF10[NUM_LEDS][3] PROGMEM;
+
 void timer1_millis_init(void);
-ISR(TIMER1_COMPA_vect);
 uint32_t get_millis(void);
 void probarColores(void);
 void mostrarFrame(const uint8_t (* const* animacion)[3], uint8_t numFrame);
-// Funciones del Loop Principal (No Bloqueantes)
 void revisarComandosSerial(void);
 void actualizarAnimacion(void);
 
+
 int main(void) {
-	// Configurar pin de la matriz (PD6) como SALIDA
+	//pin de la matriz PD6
 	DDRD |= (1 << LED);
 	
 	// Iniciar Periféricos
@@ -73,9 +85,8 @@ int main(void) {
 	// Habilitar interrupciones globales
 	sei();
 	
-	// Saludo inicial
 	USART_SendString("\r\nSistema de Animacion\r\n");
-	USART_SendString("Enviar '1' (Alien) o '0' (Test)\r\n");
+	USART_SendString("Enviar '1' (Alien), '2' (Cohete) o '0' (Test)\r\n");
 	
 	// Prueba de inicio
 	probarColores();
@@ -90,7 +101,6 @@ void USART_Init(unsigned int ubrr)
 {
 	UBRR0H = (unsigned char)(ubrr >> 8);
 	UBRR0L = (unsigned char)ubrr;
-
 	UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
 }
@@ -282,52 +292,123 @@ const uint8_t alien_frame12[NUM_LEDS][3] PROGMEM = {
 	{0,0,0},{0,0,0},{0,255,0},{0,0,0},{0,0,0},{0,255,0},{0,0,0},{0,0,0},
 };
 
-// Índice de la Animación (Punteros a los frames en PROGMEM)
 const uint8_t (* const animacion1[])[3] PROGMEM = {
 	alien_frame1, alien_frame2, alien_frame3, alien_frame4, alien_frame5,
 	alien_frame6, alien_frame7, alien_frame8, alien_frame9, alien_frame10,
 	alien_frame11, alien_frame12,
 };
 
-const uint8_t CoheteF1[NUM_LEDS][3] PROGMEM = {
 
+
+const uint8_t CoheteF1[NUM_LEDS][3] PROGMEM = {
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{150,150,150},	{150,150,150},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF2[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{150,150,150},	{150,150,150},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF3[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{0,0,0},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{150,150,150},	{150,150,150},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF4[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{150,150,150},	{150,150,150},	{150,150,150},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF5[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{150,150,150},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF6[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{150,150,150},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{255,255,0},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF7[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{150,150,150},	{150,150,150},	{150,150,150},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{255,255,0},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{255,255,0},	{255,255,0},	{255,255,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF8[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,255,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{255,255,0},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{255,255,0},	{255,255,0},	{255,255,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,0,0},	{255,255,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{255,255,0},	{255,255,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF9[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,255,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{255,0,0},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{255,255,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 const uint8_t CoheteF10[NUM_LEDS][3] PROGMEM = {
-
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},	{0, 80, 200},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
+	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},	{0,0,0},
 };
 
 const uint8_t (* const animacion2[])[3] PROGMEM = {
-    CoheteF1, CoheteF2, CoheteF3, CoheteF4, CoheteF5, 
-    CoheteF6, CoheteF7, CoheteF8, CoheteF9, CoheteF10,
-}
+	CoheteF1, CoheteF2, CoheteF3, CoheteF4, CoheteF5,
+	CoheteF6, CoheteF7, CoheteF8, CoheteF9, CoheteF10,
+};
 
 ISR(USART_RX_vect) {
 	char cmd = UDR0;
-	if (cmd == '0' || cmd == '1' || cmd = '2') {
+	if (cmd == '0' || cmd == '1' || cmd == '2') {
 		comando_recibido = cmd;
 	}
 }
@@ -373,33 +454,22 @@ void probarColores(void) {
 }
 
 void mostrarFrame(const uint8_t (* const* animacion)[3], uint8_t numFrame) {
-	// Obtener puntero al frame desde PROGMEM
-	// pgm_read_ptr() lee una dirección de memoria desde la tabla de punteros en PROGMEM
 	const void* frame_ptr = pgm_read_ptr(&animacion[numFrame]);
-	
-	//Copiar desde PROGMEM (Flash) a 'leds' (RAM)
-	// Creamos un puntero al inicio de nuestro buffer 'leds' en RAM
 	uint8_t* ram_ptr = (uint8_t*)leds;
-	
-	// Creamos un puntero a los datos del frame en PROGMEM (Flash)
 	const uint8_t* pgm_ptr = (const uint8_t*)frame_ptr;
 	
-	// Bucle para copiar todos los bytes (64 LEDs * 3 colores = 192 bytes)
 	for (int i = 0; i < (NUM_LEDS * 3); i++) {
-		// Lee un solo byte desde la memoria Flash (PROGMEM)
 		uint8_t byte_leido = pgm_read_byte(&pgm_ptr[i]);
-		
-		// Escribe ese byte en la memoria RAM
 		ram_ptr[i] = byte_leido;
 	}
 	show(leds);
 }
 
-// Funciones del Loop Principal (No Bloqueantes)
+
 void revisarComandosSerial(void) {
 	if (comando_recibido != 0) {
 		char cmd = comando_recibido;
-		comando_recibido = 0; // Limpiar el flag
+		comando_recibido = 0;
 		
 		frameActual = 0;
 		tiempoFrameAnterior = get_millis();
@@ -414,28 +484,29 @@ void revisarComandosSerial(void) {
 			animacionActual = 0;
 			USART_SendString("Comando 0: Prueba de colores\r\n");
 			probarColores();
-		    } else if (cmd = '2'){
-                animacionActual = 2;
-                velocidadFrames = anim2_tiempoFrame;
-                numFramesActual = anim1_numFrames;
-                USART_SendString("Iniciando animacion 2 (Cohete)\r\n")
-            }
+			
+			} else if (cmd == '2'){
+			animacionActual = 2;
+			velocidadFrames = anim2_tiempoFrame;
+			numFramesActual = anim2_numFrames;
+			USART_SendString("Iniciando animacion 2 (Cohete)\r\n");
+		}
 	}
 }
 
 void actualizarAnimacion(void) {
-	// Si la animación está detenida, no hacer nada
 	if (animacionActual == 0) return;
 	
-	// Control de tiempo NO BLOQUEANTE
 	uint32_t tiempoActual = get_millis();
 	
 	if (tiempoActual - tiempoFrameAnterior >= velocidadFrames) {
 		tiempoFrameAnterior = tiempoActual;
 		
-		mostrarFrame(animacion1, frameActual);
-		
-		// Avanzar al siguiente frame y reiniciar si es necesario
+		if (animacionActual == 1) {
+			mostrarFrame(animacion1, frameActual);
+			} else if (animacionActual == 2) {
+			mostrarFrame(animacion2, frameActual);
+		}
 		frameActual++;
 		if (frameActual >= numFramesActual) {
 			frameActual = 0;

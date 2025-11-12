@@ -19,17 +19,17 @@ volatile char comando_recibido = 0;
 
 // USART (Recepción por Interrupción)
 
-void USART_Init(unsigned int ubrr):
-void USART_Transmit(unsigned char data):
-void USART_SendString(const char *str):
-ISR(USART_RX_vect):
+void USART_Init(unsigned int ubrr);
+void USART_Transmit(unsigned char data);
+void USART_SendString(const char *str);
+ISR(USART_RX_vect);
 
-void sendBit(uint8_t bitVal):
-void sendByte(uint8_t byte):
-void show(uint8_t (*colors)[3]):
-void setLedRGB(uint8_t (*leds_buf)[3], int ledIndex, uint8_t r, uint8_t g, uint8_t b):
-void fillAllLedsRGB(uint8_t r, uint8_t g, uint8_t b):
-void probarColores(void):
+void sendBit(uint8_t bitVal);
+void sendByte(uint8_t byte);
+void show(uint8_t (*colors)[3]);
+void setLedRGB(uint8_t (*leds_buf)[3], int ledIndex, uint8_t r, uint8_t g, uint8_t b);
+void fillAllLedsRGB(uint8_t r, uint8_t g, uint8_t b);
+void probarColores(void);
 
 int main(void) {
     // pin de la matriz PD6 
