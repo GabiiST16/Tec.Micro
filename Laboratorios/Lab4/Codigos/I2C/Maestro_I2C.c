@@ -5,12 +5,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/* ===================== Pines de sensores ===================== */
+/* Pines de sensores */
 #define DHT_PIN   PD2
 #define BTN_PIN   PD3
 #define IR_PIN    PD4
 
-/* ===================== DHT11 ===================== */
+/* DHT11 */
 static inline void dht_line_output(void){ DDRD |= (1<<DHT_PIN); }
 static inline void dht_line_input_pullup(void){ DDRD &= ~(1<<DHT_PIN); PORTD |= (1<<DHT_PIN); }
 static inline void dht_drive_low(void){ PORTD &= ~(1<<DHT_PIN); }
@@ -45,7 +45,7 @@ static bool dht11_read(uint8_t *hum, uint8_t *temp){
     return true;
 }
 
-/* ===================== Entradas ===================== */
+/* Entradas */
 static inline void inputs_init(void){
     DDRD &= ~((1<<BTN_PIN)|(1<<IR_PIN));
     PORTD |= (1<<BTN_PIN);   // pull-up en botón
@@ -58,7 +58,7 @@ static inline bool ir_detected(void){
     return (PIND & (1<<IR_PIN)) == 0;
 }
 
-/* ===================== Protocolo hacia esclavo ===================== */
+/* Protocolo hacia esclavo */
 #define CMD_SET_ACT   0xA1
 #define CMD_SET_SERVO 0xA2
 
@@ -90,7 +90,7 @@ static void decide_actions(uint8_t okDHT, uint8_t T, uint8_t H,
     *angle = a;
 }
 
-/* ===================== I2C (TWI) + LCD ===================== */
+/* I2C (TWI) + LCD */
 #define LCD_ADDR       0x27
 #define LCD_COMMAND    0
 #define LCD_DATA       1
@@ -99,7 +99,7 @@ static void decide_actions(uint8_t okDHT, uint8_t T, uint8_t H,
 
 #define SLAVE_ADDR     0x12   // dirección I2C del ATmega esclavo
 
-/* --- I2C básico --- */
+/* I2C básico */
 static void i2c_init(void){
     TWSR = 0x00;        // prescaler = 1
     TWBR = 72;          // ~100 kHz con 16 MHz
@@ -120,13 +120,13 @@ static void i2c_stop(void){
     TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
 }
 
-/* --- LCD I2C sobre PCF8574 --- */
+
 static void lcd_i2c_write(uint8_t data, uint8_t mode){
     uint8_t high = data & 0xF0;
     uint8_t low  = (data << 4) & 0xF0;
 
     i2c_start();
-    i2c_write(LCD_ADDR << 1);   // SLA+W
+    i2c_write(LCD_ADDR << 1); 
 
     // nibble alto
     i2c_write(high | mode | LCD_BACKLIGHT | EN);
@@ -173,7 +173,7 @@ static void lcd_i2c_write_string(char *str){
     }
 }
 
-/* --- Envío de comando+dato al esclavo I2C --- */
+/* Envío de comando+dato al esclavo I2C */
 static void i2c_send_slave_cmd(uint8_t cmd, uint8_t data){
     i2c_start();
     i2c_write(SLAVE_ADDR << 1);   // SLA+W
@@ -182,16 +182,21 @@ static void i2c_send_slave_cmd(uint8_t cmd, uint8_t data){
     i2c_stop();
 }
 
-/* ===================== MAIN ===================== */
+/* MAIN */
 int main(void){
     inputs_init();
     i2c_init();
     lcd_i2c_init();
 
+    // poner las cadenas en RAM para evitar el problema de address space
+    char init_line1[] = "Sistema I2C+DHT";
+    char init_line2[] = "Maestro listo";
+    char dht_error[]  = "DHT ERROR      ";
+
     lcd_i2c_command(0x80);
-    lcd_i2c_write_string("Sistema I2C+DHT");
+    lcd_i2c_write_string(init_line1);
     lcd_i2c_command(0xC0);
-    lcd_i2c_write_string("Maestro listo");
+    lcd_i2c_write_string(init_line2);
     _delay_ms(1000);
 
     uint8_t T=0, H=0;
@@ -205,20 +210,20 @@ int main(void){
         uint8_t mask, angle;
         decide_actions(ok, T, H, btn, ir, &mask, &angle);
 
-        /* --- LCD --- */
+        /* LCD */
         lcd_i2c_command(0x80);  // 1ª línea
         if(ok){
             snprintf(buf, sizeof(buf), "T:%2uC H:%2u%%", T, H);
-            lcd_i2c_write_string(buf);
+            lcd_i2c_write_string(buf);   // buf ya está en RAM
         } else {
-            lcd_i2c_write_string("DHT ERROR      ");
+            lcd_i2c_write_string(dht_error);  // también en RAM
         }
 
         lcd_i2c_command(0xC0);  // 2ª línea
         snprintf(buf, sizeof(buf), "BTN=%d IR=%d   ", btn?1:0, ir?1:0);
         lcd_i2c_write_string(buf);
 
-        /* --- Enviar comandos al esclavo --- */
+        /* Enviar comandos al esclavo */
         i2c_send_slave_cmd(CMD_SET_ACT,   mask);
         _delay_ms(2);
         i2c_send_slave_cmd(CMD_SET_SERVO, angle);
